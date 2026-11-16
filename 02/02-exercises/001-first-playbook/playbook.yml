@@ -1,0 +1,10 @@
+---
+- name: Install curl on web servers
+  hosts: web
+  become: true
+  tasks:
+    - name: Install curl
+      apt:
+        name: curl
+        state: present
+        update_cache: true

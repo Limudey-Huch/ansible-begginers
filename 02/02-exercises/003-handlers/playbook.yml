@@ -1,0 +1,22 @@
+---
+- name: Deploy custom nginx config
+  hosts: web
+  become: true
+  tasks:
+    - name: Install nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Deploy custom config
+      copy:
+        src: nginx_custom.conf
+        dest: /etc/nginx/conf.d/custom.conf
+      notify: Restart nginx
+
+  handlers:
+    - name: Restart nginx
+      service:
+        name: nginx
+        state: restarted

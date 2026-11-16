@@ -1,0 +1,73 @@
+---
+- name: Configure backend app
+  hosts: backend
+  become: true
+  tasks:
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+        update_cache: true
+
+    - name: Deploy app entrypoint
+      copy:
+        content: |
+          const http = require('http');
+          http.createServer((req, res) => {
+            res.end('Hello from the backend!\n');
+          }).listen(3000);
+        dest: /opt/app.js
+
+    - name: Install app systemd unit
+      copy:
+        content: |
+          [Unit]
+          Description=Demo backend app
+
+          [Service]
+          ExecStart=/usr/bin/node /opt/app.js
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/myapp.service
+      notify: Restart app service
+
+    - name: Start and enable app service
+      systemd:
+        name: myapp
+        state: started
+        enabled: true
+        daemon_reload: true
+
+  handlers:
+    - name: Restart app service
+      systemd:
+        name: myapp
+        state: restarted
+        daemon_reload: true
+
+- name: Configure frontend reverse proxy
+  hosts: frontend
+  become: true
+  vars:
+    backend_host: "{{ hostvars[groups['backend'][0]]['ansible_host'] }}"
+    backend_port: 3000
+  tasks:
+    - name: Install nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Deploy reverse proxy config
+      template:
+        src: reverse_proxy.conf.j2
+        dest: /etc/nginx/sites-enabled/default
+      notify: Restart nginx
+
+  handlers:
+    - name: Restart nginx
+      service:
+        name: nginx
+        state: restarted

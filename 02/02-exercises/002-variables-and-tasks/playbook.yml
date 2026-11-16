@@ -1,0 +1,19 @@
+---
+- name: Install and start a web server
+  hosts: web
+  become: true
+  vars:
+    package_name: nginx
+    service_name: nginx
+  tasks:
+    - name: Install package
+      apt:
+        name: "{{ package_name }}"
+        state: present
+        update_cache: true
+
+    - name: Ensure service is running and enabled
+      service:
+        name: "{{ service_name }}"
+        state: started
+        enabled: true

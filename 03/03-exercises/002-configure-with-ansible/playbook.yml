@@ -1,0 +1,40 @@
+---
+- name: Configure the Terraform-provisioned web server
+  hosts: web
+  become: true
+  vars:
+    site_title: "Hello from Terraform + Ansible"
+
+  tasks:
+    # Stage 1 — refresh the package index, same as any apt-based playbook
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    # Stage 2 — install the software this server needs
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    # Stage 3 — configure it (a real file, not a default page)
+    - name: Deploy the site's index page from a template
+      ansible.builtin.template:
+        src: templates/index.html.j2
+        dest: /var/www/html/index.html
+        mode: "0644"
+      notify: Restart nginx
+
+    # Stage 4 — make sure the service is actually running and survives a reboot
+    - name: Ensure nginx is started and enabled
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

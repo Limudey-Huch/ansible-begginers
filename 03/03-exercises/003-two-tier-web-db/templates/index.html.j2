@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html>
+<head><title>Two-Tier Basic Course</title></head>
+<body style="font-family: sans-serif; text-align: center; margin-top: 10%;">
+  <h1>Web tier</h1>
+  <p>Configured by Ansible, running on a server Terraform created.</p>
+  <p>My db tier teammate is reachable at <code>{{ hostvars[groups['db'][0]]['private_ip'] }}</code>
+     (over the VPC only — the security group blocks everyone else).</p>
+</body>
+</html>

@@ -1,0 +1,79 @@
+---
+# Play 1 — the db tier, configured first: the web tier's page will reference it
+- name: Configure the db tier
+  hosts: db
+  become: true
+  vars:
+    # A real project would pull this from Ansible Vault, not plain text — out of scope here
+    app_db_password: "AppCourse2026!"
+  tasks:
+    # Stage 1 — update
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    # Stage 2 — install
+    - name: Install PostgreSQL
+      ansible.builtin.apt:
+        name:
+          - postgresql
+          - python3-psycopg2
+          - acl # needed for become_user to switch to the postgres system user cleanly
+        state: present
+
+    # Stage 3 — configure
+    - name: Ensure PostgreSQL is started and enabled
+      ansible.builtin.service:
+        name: postgresql
+        state: started
+        enabled: true
+
+    - name: Create the application database user
+      community.postgresql.postgresql_user:
+        name: appuser
+        password: "{{ app_db_password }}"
+      become_user: postgres
+
+    - name: Create the application database, owned by that user
+      community.postgresql.postgresql_db:
+        name: appdb
+        owner: appuser
+      become_user: postgres
+
+- name: Configure the web tier
+  hosts: web
+  become: true
+  tasks:
+    # Stage 1 — update
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    # Stage 2 — install
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    # Stage 3 — configure
+    - name: Deploy the web tier's index page
+      ansible.builtin.template:
+        src: templates/index.html.j2
+        dest: /var/www/html/index.html
+        mode: "0644"
+      notify: Restart nginx
+
+    # Stage 4 — verify
+    - name: Ensure nginx is started and enabled
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
