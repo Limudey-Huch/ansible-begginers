@@ -21,7 +21,7 @@ This is a fresh, independent pair of servers — you don't need Exercise 001/002
 
 ### Step 1 — Provision both servers
 ```bash
-cd ~/00_devops_course_iccp/ansible/courses/ansible/03/03-exercises/003-two-tier-web-db/infra
+cd .../ansible/courses/ansible/03/03-exercises/003-two-tier-web-db/infra   # the prefix depends on where you placed the course
 terraform init
 terraform plan    # Plan: 7 to add — 2 security groups, 2 instances, and 3 resources for the
                   # key pair (tls_private_key generates it, aws_key_pair registers it with AWS,
@@ -48,6 +48,16 @@ cat inventory.ini
 ```
 Two groups, `[web]` and `[db]` — the same group syntax from Lesson 01, now pointing at two
 different real servers.
+
+Both IPs are brand new to your control node — unlike Exercise 001, nothing here has made you
+manually `ssh` into them yet, so Ansible has no record of their SSH host keys. Seed it
+non-interactively, the same identity-checking concept from this course's SSH discussion,
+just done with a scriptable command instead of typing `yes` at a prompt:
+```bash
+ssh-keyscan -H "$WEB_IP" "$DB_IP" >> ~/.ssh/known_hosts
+```
+Skip this and the next step fails with `Host key verification failed` — not a bug, just
+SSH correctly refusing to trust a host it's never seen before.
 
 ### Step 4 — Read the playbook's two plays
 Open `playbook.yml`. **Play 1** (`hosts: db`) runs first — installs PostgreSQL and creates an
@@ -105,4 +115,12 @@ inventory variable, not something Ansible invents on its own from a static file.
 The db security group allows SSH (22) only from your own IP, same as the web tier — if your
 IP changed since `terraform apply` (e.g. new wifi network), re-run `terraform apply` to pick
 up the new `data.http.my_ip` value and update the rule.
+</details>
+
+<details><summary>Hint 4 — "Host key verification failed" when running the playbook</summary>
+You skipped (or need to redo) the `ssh-keyscan` line in Step 3 — Ansible refuses to connect
+to a host whose SSH identity it doesn't already have on file. Re-run that line, then retry
+Step 5. If you destroyed and re-created the servers, their host keys changed too — re-run
+`ssh-keyscan` again with the new IPs (old stale entries don't cause this specific error, but
+can if the *same* IP gets reused with a *different* key — see this course's known_hosts discussion).
 </details>

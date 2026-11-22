@@ -31,7 +31,7 @@ Open the `infra/` folder. Five small files, each with one job:
 
 ### Step 2 — Initialize
 ```bash
-cd ~/00_devops_course_iccp/ansible/courses/ansible/03/03-exercises/001-terraform-first-server/infra
+cd .../ansible/courses/ansible/03/03-exercises/001-terraform-first-server/infra   # the prefix depends on where you placed the course
 terraform init
 ```
 This downloads the providers listed in `versions.tf`. Run it once per project folder.

@@ -1,0 +1,15 @@
+server {
+    listen 80;
+
+    root /var/www/radar;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location /api/ {
+        proxy_pass http://{{ hostvars[groups['role_app'][0]]['private_ip'] }}:5000/api/;
+        proxy_set_header Host $host;
+    }
+}

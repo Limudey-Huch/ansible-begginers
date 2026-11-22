@@ -1,0 +1,9 @@
+[Unit]
+Description=Radar poller (one-shot — triggered by radar-poller.timer)
+
+[Service]
+Type=oneshot
+EnvironmentFile=/opt/radar-app/.env
+WorkingDirectory=/opt/radar-app
+ExecStart=/opt/radar-app/venv/bin/python3 /opt/radar-app/poller.py
+User=radar

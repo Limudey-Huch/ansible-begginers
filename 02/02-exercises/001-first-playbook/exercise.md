@@ -10,6 +10,12 @@ Write and run the simplest possible playbook: one play, one task, against the in
 
 ## 📋 Instructions
 
+Run every command below from inside this exercise's own folder — `playbook.yml` is
+referenced by a relative path, so the wrong working directory means "file not found":
+```bash
+cd .../ansible/courses/ansible/02/02-exercises/001-first-playbook   # the prefix depends on where you placed the course
+```
+
 This exercise has no inventory of its own — the playbook targets `hosts: web`, which is
 the same `[web]` group you already built in Lesson 01's inventory. Set this once per
 terminal session:

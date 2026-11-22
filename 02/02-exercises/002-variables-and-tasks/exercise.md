@@ -10,6 +10,12 @@ Extend your first playbook: install and start a package whose name comes from a 
 
 ## 📋 Instructions
 
+Run every command below from inside this exercise's own folder — `playbook.yml` is
+referenced by a relative path, so the wrong working directory means "file not found":
+```bash
+cd .../ansible/courses/ansible/02/02-exercises/002-variables-and-tasks   # the prefix depends on where you placed the course
+```
+
 This exercise has no inventory of its own — the playbook targets `hosts: web`, the
 same `[web]` group from Lesson 01's inventory. Set this once per terminal session:
 ```bash

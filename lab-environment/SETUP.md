@@ -31,11 +31,14 @@ mkdir -p ~/ansible-lab
 ssh-keygen -t ed25519 -f ~/ansible-lab/ansible_lab_key -N ""
 ```
 
-## 2. Copy the public key into this folder
+## 2. Copy the public key where docker-compose expects it
 
 ```bash
-cp ~/ansible-lab/ansible_lab_key.pub authorized_keys
+cp ~/ansible-lab/ansible_lab_key.pub ~/ansible-lab/authorized_keys
 ```
+**Not** into this course folder — `docker-compose.yml` mounts
+`${HOME}/ansible-lab/authorized_keys` into each container, a normal (non-shared) path, for
+the same permission reason as Step 1.
 
 ## 3. Build the image, then start the containers
 
@@ -78,7 +81,9 @@ docker compose down && docker compose up -d
 |---|---|
 | `Unit ssh.service could not be found` | You're running the raw base image instead of the local build — run `docker compose build` first, then `up -d` |
 | `connect to host ... port 22: Connection refused` | SSH isn't running yet, or the image wasn't rebuilt after a Dockerfile change — `docker compose up -d --build` |
-| `Permission denied (publickey)` | `authorized_keys` wasn't copied in before `docker compose up -d` — `docker compose down && cp ~/ansible-lab/ansible_lab_key.pub authorized_keys && docker compose up -d` |
+| `Permission denied (publickey)` | `~/ansible-lab/authorized_keys` wasn't created (or has the wrong key) before `docker compose up -d` — `docker compose down && cp ~/ansible-lab/ansible_lab_key.pub ~/ansible-lab/authorized_keys && docker compose up -d` |
 | `UNPROTECTED PRIVATE KEY FILE` from `ssh` | The private key lives on a shared/mounted filesystem that doesn't preserve permissions — regenerate it under a normal path like `~/ansible-lab/`, not inside the mounted course folder |
+| `[WARNING]: Ansible is being run in a world writable directory... ignoring it as an ansible.cfg source`, then `Host key verification failed` | Happens when this course folder is a shared/mounted one — Ansible refuses to trust a config file it can't be sure only you can edit, so this folder's `ansible.cfg` (and its `host_key_checking = False`) gets skipped. Run `ansible-playbook`/`ansible` from a normal, non-shared path instead, or clear the stale key with `ssh-keygen -R <ip>` per host |
+| `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED` from plain `ssh` | The container was rebuilt (`docker compose down && up`, or Step 6) and got a new SSH host key at the same IP. Harmless here — run the `ssh-keygen -R <ip>` command the warning itself prints, then reconnect |
 | `python: command not found` | Shouldn't happen with this image, but if using a different base, install `python3` in it — Ansible requires it on managed nodes |
 | systemd/service module fails ("System has not been booted with systemd") | Missing `privileged: true` / `cgroup: host` / cgroup volume mount — these are required for systemd to run inside the container |

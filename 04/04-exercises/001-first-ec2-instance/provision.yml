@@ -1,0 +1,62 @@
+---
+- name: Provision a single EC2 instance
+  hosts: localhost
+  gather_facts: false
+  vars:
+    aws_region: eu-north-1
+    ami_id: ami-0848826c0bc5f2e6c   # Ubuntu 22.04 LTS, eu-north-1 — check for a newer one at
+                                     # https://cloud-images.ubuntu.com/locator/ec2/ if this is old
+    key_name: radar-course-key
+  tasks:
+    - name: Detect my public IP (so SSH is only open to me, not the whole internet)
+      ansible.builtin.uri:
+        url: https://checkip.amazonaws.com
+        return_content: true
+      register: my_ip_raw
+
+    - name: Set my_ip fact
+      ansible.builtin.set_fact:
+        my_ip: "{{ my_ip_raw.content | trim }}"
+
+    - name: Create an EC2 key pair (idempotent — safe to run again)
+      amazon.aws.ec2_key:
+        name: "{{ key_name }}"
+        region: "{{ aws_region }}"
+      register: ec2_key
+
+    - name: Save the private key locally (only happens on first creation)
+      ansible.builtin.copy:
+        content: "{{ ec2_key.key.private_key }}"
+        dest: "./{{ key_name }}.pem"
+        mode: '0400'
+      when: ec2_key.key.private_key is defined
+
+    - name: Create a security group — SSH from my IP only
+      amazon.aws.ec2_security_group:
+        name: radar-lab-sg
+        description: "Ansible course lab - SSH access only"
+        region: "{{ aws_region }}"
+        tags:
+          Project: ansible-course-radar
+        rules:
+          - proto: tcp
+            ports: [22]
+            cidr_ip: "{{ my_ip }}/32"
+
+    - name: Launch the instance
+      amazon.aws.ec2_instance:
+        name: "radar-lab-instance"
+        key_name: "{{ key_name }}"
+        instance_type: t3.micro
+        image_id: "{{ ami_id }}"
+        region: "{{ aws_region }}"
+        security_group: radar-lab-sg
+        tags:
+          Project: ansible-course-radar
+          Role: lab
+        wait: true
+      register: ec2
+
+    - name: Show the public IP
+      ansible.builtin.debug:
+        msg: "Instance is up at {{ ec2.instances[0].public_ip_address }} — give cloud-init ~30-60s before SSH works"

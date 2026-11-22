@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Live Aircraft Radar</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Live Aircraft Radar <span id="count"></span></h1>
+  <div class="radar-wrap">
+    <canvas id="radar" width="600" height="600"></canvas>
+    <div id="info" class="info-panel hidden"></div>
+  </div>
+  <p class="hint">Click a blip for details. Data: <a href="https://opensky-network.org" target="_blank">OpenSky Network</a> — refreshes every 5s.</p>
+  <script src="radar.js"></script>
+</body>
+</html>

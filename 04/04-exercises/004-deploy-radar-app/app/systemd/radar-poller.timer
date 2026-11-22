@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the radar poller every 5 seconds
+
+[Timer]
+OnBootSec=5
+OnUnitActiveSec=5
+AccuracySec=1
+
+[Install]
+WantedBy=timers.target

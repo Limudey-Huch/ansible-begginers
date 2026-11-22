@@ -1,0 +1,191 @@
+---
+# Deploys the radar app across the 3 tiers provisioned in Exercise 003.
+# Run with: ansible-playbook -i inventory.aws_ec2.yml playbook.yml
+#
+# NOTE: radar_db_password is a plain variable for teaching simplicity. In a real
+# project this would be encrypted with Ansible Vault — never commit a real
+# password in plain YAML.
+
+- name: Configure the database tier
+  hosts: role_db
+  become: true
+  vars:
+    radar_db_password: "ChangeMe123!"
+    vpc_cidr: "172.31.0.0/16"   # this course's default-VPC CIDR — see Exercise 003
+  tasks:
+    - name: Install PostgreSQL
+      apt:
+        name: [postgresql, python3-psycopg2, acl]
+        state: present
+        update_cache: true
+
+    - name: Allow Postgres to listen on all interfaces (needed for the app tier to reach it)
+      ansible.builtin.lineinfile:
+        path: /etc/postgresql/14/main/postgresql.conf
+        regexp: "^#?listen_addresses"
+        line: "listen_addresses = '*'"
+      notify: Restart postgresql
+
+    - name: Allow connections from inside the VPC only
+      ansible.builtin.lineinfile:
+        path: /etc/postgresql/14/main/pg_hba.conf
+        line: "host    all             all             {{ vpc_cidr }}            md5"
+        insertafter: EOF
+      notify: Restart postgresql
+
+    - name: Flush handlers now so the new config is active before we connect
+      meta: flush_handlers
+
+    - name: Ensure the radar DB role exists
+      become_user: postgres
+      community.postgresql.postgresql_user:
+        name: radar
+        password: "{{ radar_db_password }}"
+
+    - name: Ensure the radar database exists
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        name: radar
+        owner: radar
+
+    - name: Deploy the schema
+      become_user: postgres
+      community.postgresql.postgresql_query:
+        db: radar
+        query: "{{ lookup('file', 'app/db_schema.sql') }}"
+
+  handlers:
+    - name: Restart postgresql
+      ansible.builtin.service:
+        name: postgresql
+        state: restarted
+
+- name: Configure the app tier
+  hosts: role_app
+  become: true
+  vars:
+    radar_db_password: "ChangeMe123!"
+  tasks:
+    - name: Install Python and build tools
+      apt:
+        name: [python3-venv, python3-pip, libpq-dev]
+        state: present
+        update_cache: true
+
+    - name: Create the radar system user
+      ansible.builtin.user:
+        name: radar
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: false
+
+    - name: Create the app directory
+      ansible.builtin.file:
+        path: /opt/radar-app
+        state: directory
+        owner: radar
+        mode: '0755'
+
+    - name: Deploy application code
+      ansible.builtin.copy:
+        src: "app/{{ item }}"
+        dest: "/opt/radar-app/{{ item }}"
+        owner: radar
+        mode: '0644'
+      loop:
+        - app.py
+        - poller.py
+        - requirements.txt
+
+    - name: Render the environment file (DB connection info)
+      ansible.builtin.template:
+        src: app/radar-app.env.j2
+        dest: /opt/radar-app/.env
+        owner: radar
+        mode: '0600'
+
+    - name: Install Python dependencies into a venv
+      ansible.builtin.pip:
+        requirements: /opt/radar-app/requirements.txt
+        virtualenv: /opt/radar-app/venv
+        virtualenv_command: python3 -m venv
+
+    - name: Deploy systemd units
+      ansible.builtin.copy:
+        src: "app/systemd/{{ item }}"
+        dest: "/etc/systemd/system/{{ item }}"
+      loop:
+        - radar-api.service
+        - radar-poller.service
+        - radar-poller.timer
+      notify: Reload systemd
+
+    - name: Flush handlers so new unit files are registered before we enable them
+      meta: flush_handlers
+
+    - name: Enable and start the API service
+      ansible.builtin.systemd:
+        name: radar-api.service
+        enabled: true
+        state: restarted
+
+    - name: Enable and start the poller timer
+      ansible.builtin.systemd:
+        name: radar-poller.timer
+        enabled: true
+        state: restarted
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+- name: Configure the web tier
+  hosts: role_web
+  become: true
+  tasks:
+    - name: Install nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Create the static site directory
+      ansible.builtin.file:
+        path: /var/www/radar
+        state: directory
+        mode: '0755'
+
+    - name: Deploy the radar frontend (static files)
+      ansible.builtin.copy:
+        src: "app/static/{{ item }}"
+        dest: "/var/www/radar/{{ item }}"
+      loop:
+        - index.html
+        - style.css
+        - radar.js
+
+    - name: Deploy the nginx site config
+      ansible.builtin.template:
+        src: app/nginx_radar.conf.j2
+        dest: /etc/nginx/sites-available/radar
+      notify: Restart nginx
+
+    - name: Enable the radar site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/radar
+        dest: /etc/nginx/sites-enabled/radar
+        state: link
+      notify: Restart nginx
+
+    - name: Disable the default nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Restart nginx
+
+  handlers:
+    - name: Restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

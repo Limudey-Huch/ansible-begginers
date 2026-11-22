@@ -10,6 +10,13 @@ Combine everything from this lesson into one playbook that deploys a two-tier ap
 
 ## 📋 Instructions
 
+Run every command below from inside this exercise's own folder — `inventory.ini`,
+`playbook.yml`, and `reverse_proxy.conf.j2` are all referenced by relative paths, so the
+wrong working directory means "file not found":
+```bash
+cd .../ansible/courses/ansible/02/02-exercises/004-multitier-stack   # the prefix depends on where you placed the course
+```
+
 This exercise has its own `inventory.ini` (already filled in — `frontend`/`backend`
 groups, matching the lab environment). Set this once per terminal session:
 ```bash

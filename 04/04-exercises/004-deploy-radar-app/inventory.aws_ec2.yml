@@ -1,0 +1,14 @@
+plugin: amazon.aws.aws_ec2
+regions:
+  - eu-north-1
+filters:
+  tag:Project: ansible-course-radar
+  instance-state-name: running
+keyed_groups:
+  - key: tags.Role
+    prefix: role
+compose:
+  ansible_host: public_ip_address    # the control node is outside the VPC — needs the public IP
+  private_ip: private_ip_address     # for intra-VPC connections (SG-to-SG rules only match on this)
+  ansible_user: "'ubuntu'"
+  ansible_ssh_private_key_file: "'./infra/radar-course-key-tf.pem'"

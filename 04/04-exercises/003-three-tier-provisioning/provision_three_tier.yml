@@ -1,0 +1,116 @@
+---
+- name: Provision the 3-tier radar stack
+  hosts: localhost
+  gather_facts: false
+  vars:
+    aws_region: eu-north-1
+    ami_id: ami-0848826c0bc5f2e6c   # Ubuntu 22.04 LTS, eu-north-1 — same as Exercise 001
+    key_name: radar-course-key      # reusing the key pair created in Exercise 001
+  tasks:
+    - name: Detect my public IP (for SSH access rules)
+      ansible.builtin.uri:
+        url: https://checkip.amazonaws.com
+        return_content: true
+      register: my_ip_raw
+
+    - name: Set my_ip fact
+      ansible.builtin.set_fact:
+        my_ip: "{{ my_ip_raw.content | trim }}"
+
+    # ---------- Security Groups (web -> app -> db, each only reachable from the tier in front of it) ----------
+
+    - name: Web tier security group (public HTTP + SSH from me)
+      amazon.aws.ec2_security_group:
+        name: radar-web-sg
+        description: "Public web tier"
+        region: "{{ aws_region }}"
+        tags:
+          Project: ansible-course-radar
+        rules:
+          - proto: tcp
+            ports: [22]
+            cidr_ip: "{{ my_ip }}/32"
+          - proto: tcp
+            ports: [80]
+            cidr_ip: 0.0.0.0/0
+
+    - name: App tier security group (only reachable from web tier)
+      amazon.aws.ec2_security_group:
+        name: radar-app-sg
+        description: "Private app tier"
+        region: "{{ aws_region }}"
+        tags:
+          Project: ansible-course-radar
+        rules:
+          - proto: tcp
+            ports: [22]
+            cidr_ip: "{{ my_ip }}/32"
+          - proto: tcp
+            ports: [5000]
+            group_name: radar-web-sg
+
+    - name: DB tier security group (only reachable from app tier)
+      amazon.aws.ec2_security_group:
+        name: radar-db-sg
+        description: "Private db tier"
+        region: "{{ aws_region }}"
+        tags:
+          Project: ansible-course-radar
+        rules:
+          - proto: tcp
+            ports: [22]
+            cidr_ip: "{{ my_ip }}/32"
+          - proto: tcp
+            ports: [5432]
+            group_name: radar-app-sg
+
+    # ---------- Instances ----------
+
+    - name: Launch the web instance
+      amazon.aws.ec2_instance:
+        name: radar-web
+        key_name: "{{ key_name }}"
+        instance_type: t3.micro
+        image_id: "{{ ami_id }}"
+        region: "{{ aws_region }}"
+        security_group: radar-web-sg
+        tags:
+          Project: ansible-course-radar
+          Role: web
+        wait: true
+      register: web_ec2
+
+    - name: Launch the app instance
+      amazon.aws.ec2_instance:
+        name: radar-app
+        key_name: "{{ key_name }}"
+        instance_type: t3.micro
+        image_id: "{{ ami_id }}"
+        region: "{{ aws_region }}"
+        security_group: radar-app-sg
+        tags:
+          Project: ansible-course-radar
+          Role: app
+        wait: true
+      register: app_ec2
+
+    - name: Launch the db instance
+      amazon.aws.ec2_instance:
+        name: radar-db
+        key_name: "{{ key_name }}"
+        instance_type: t3.micro
+        image_id: "{{ ami_id }}"
+        region: "{{ aws_region }}"
+        security_group: radar-db-sg
+        tags:
+          Project: ansible-course-radar
+          Role: db
+        wait: true
+      register: db_ec2
+
+    - name: Show public IPs
+      ansible.builtin.debug:
+        msg:
+          - "web: {{ web_ec2.instances[0].public_ip_address }}"
+          - "app: {{ app_ec2.instances[0].public_ip_address }}"
+          - "db:  {{ db_ec2.instances[0].public_ip_address }}"
